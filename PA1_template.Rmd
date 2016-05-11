@@ -1,25 +1,168 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "PA_template"
+author: "Faisal Bin Basha"
+date: "May 11, 2016"
+output: html_document
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 
-## Loading and preprocessing the data
+```{r}
+library(plyr)
+library(lubridate)
+library(ggplot2)
+library(scales)
+library(Hmisc)
 
+```
 
+# Loading and preprocessing the data
+```{r}
+activity <- read.csv("activity.csv",stringsAsFactors = FALSE,header=TRUE, sep=',',colClasses=c("numeric","character","integer"))
+```
 
-## What is mean total number of steps taken per day?
+## R Markdown Reading the data into activity data frame and show some summary statistics
 
+```{r}
+activity <- read.csv("activity.csv",stringsAsFactors = FALSE)
+summary(activity)
+```
+
+## Convert date to POSIXct clas using lubridate package
+```{r}
+activity$day <- weekdays(as.Date(activity$date))
+activity$DateTime <- as.POSIXct(activity$date,format="%Y-%m-%d")
+
+no_nas <- activity[!is.na(activity$steps),]
+str(no_nas)
+
+```
+## head of no_nas
+```{r}
+head(no_nas)
+```
+
+# What is mean total number of steps per day
+
+## calculate the total number of steps taken per day
+
+```{r}
+sumoftables <- aggregate(activity$steps ~ activity$date,FUN=sum,)
+
+colnames(sumoftables) <- c("Date","Steps")
+
+hist(sumoftables$Steps,breaks=5,xlab="Steps", main="Total Steps per Day")
+```
+
+## Calculate and report the mean and median of the total ## number of steps taken per day
+
+```{r}
+meanR <- as.integer(mean(sumoftables$Steps))
+medianR <- as.integer(median(sumoftables$Steps))
+```
+
+### Mean : 
+```{r} 
+meanR
+```
+
+### Median : 
+```{r} 
+medianR 
+```
 
 
 ## What is the average daily activity pattern?
 
+```{r} 
+library(dplyr)
+
+interval <- activity %>% 
+            filter(!is.na(steps)) %>%
+            group_by(interval) %>%
+            summarize(steps = mean(steps))
+
+average <- ggplot(interval,aes(x=interval,y=steps))
+
+average + geom_line(color = "blue") + xlab("Interval") + ylab("Average Number of Steps") + ggtitle("Average number of steps per Interval")
+```
+
+## Maximum steps per interval
+```{r}
+maxSteps <- max(interval$Avg)
+```
+
+## Which interval contains the maximum average number of ## steps
+
+```{r}
+
+interval[interval$Avg == maxSteps,1]
+```
+#Imputing missing values
+
+## Calculate and report the total number of missing values  in the dataset
+
+```{r}
+nrow(activity[is.na(activity$steps),])
+```
+
+## Devise a strategy for filling in all of the missing 
+## values in the dataset
+
+```{r}
+dataImputed <- activity
+dataImputed$steps <- impute(activity$steps,fun=mean)
+```
+
+## Histogram of the total number of steps per day
+```{r}
+stepsPerDayImputed <- tapply(dataImputed$steps,dataImputed$date,sum)
+qplot(stepsPerDayImputed,xlab="Total steps per day (Imputed)",ylab="Frequency using binwidth 500",binwidth=500)
+```
+
+## Calculate and report the mean and median total number of steps taken per day
+
+```{r}
+stepsPerDayMeanImputed <- mean(stepsPerDayImputed)
+stepsPerDayMedianImputed <- median(stepsPerDayImputed)
+```
+
+# Mean (imputed): 
+```{r} 
+stepsPerDayMeanImputed 
+```
+
+# Median (imputed): 
+```{r} 
+stepsPerDayMedianImputed 
+```
 
 
-## Imputing missing values
+# Are there differences in activity patterns between 
+# weekdays and weekends
 
+### 1. Create a new factor variable in the dataset with 
+### two levels - "weekday" and "weekend" indicating 
+### whether a given date is a weekday or weekend day
 
+```{r}
+weekday.or.weekend <- function(date) {
+    day <- weekdays(date)
+    if (day %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")) 
+        return("weekday") else if (day %in% c("Saturday", "Sunday")) 
+        return("weekend") else stop("invalid date")
+}
+dataImputed$date <- as.Date(dataImputed$date)
+dataImputed$day <- sapply(dataImputed$date, FUN = weekday.or.weekend)
+```
 
-## Are there differences in activity patterns between weekdays and weekends?
+### 2 Make a panel plot containing a time series plot
+
+```{r}
+averages <- aggregate(steps ~ interval + day, data = dataImputed, mean)
+ggplot(averages, aes(interval, steps)) + geom_line() + facet_grid(day ~ .) + 
+    xlab("5-minute interval") + ylab("Number of steps")
+```
+
